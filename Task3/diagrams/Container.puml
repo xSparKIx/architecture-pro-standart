@@ -1,0 +1,113 @@
+@startuml container_diagram
+
+!include ../templates/C4_Container.puml
+
+title Диаграмма контейнеров - Детализация интернет-банка и АБС
+
+Person(client, "Клиент", "Пользователь цифровых услуг банка")
+Person(manager, "Сотрудник банка", "Сотрудник кредитного/депозитного отделов банка")
+Person(CallManager, "Менеджер кол-центра", "Менеджер кол-центра по офомлению заявок клиентов")
+
+System_Ext(SMSService, "Сервис рассылки уведомлений", "Отправляет СМС пользователям")
+System(SMSGateway, "SMS-шлюз", "Рассылает сообщения")
+System(CallSystem, "Система кол-центра", "Принимает и формирует заявки")
+
+' @todo Скорее всего заменить на Кафку
+SystemQueue(broker, "Брокер сообщений", "RabbitMQ", "Асинхронный обмен сообщениями между системами")
+
+' Система интернет-банка
+System_Boundary(InternetBankBoundary, "Интернет-банк") {
+    Container(Mobile, "Мобильные устройства", "Swift, Kotlin, JavaScript, React", "Мобильное приложение и/или PWA с пользовательским интерфейсом")
+    Container(MobileBFF, "BFF мобильных устройств")
+    Container(WebUi, "Web-интерфейс", "JavaScript, React", "SPA приложение с пользовательским интерфейсом")
+    Container(WebUiBFF, "BFF Web-интерфейса")
+    Container(ApiGateway, "API Gateway", "", "Единая точка входа, маршрутизация запросов")
+    Container(UserService, "Сервис аутентификации")
+    Container(DepositService, "Сервис депозитов", ".NET Core", "Обработка заявок на открытие депозитов")
+    Container(CreditService, "Сервис кредитов", "Java Spring", "Обработка кредитных заявок, интеграция со скорингом")
+    ContainerDb(cache, "Кэш-сервер", "Redis", "Кэширование справочников, сессий, предодобренных предложений")
+    ContainerDb(IBDb, "База данных", "PostgreSQL", "Содержит информацию о клиентах и их заявках")
+}
+
+' Система АБС
+System_Boundary(AbcBoundary, "АБС банка") {
+    Container(AbcWebUi, "Web-интерфейс АБС", "JavaScript, React", "SPA с пользовательским интерфейсом")
+    Container(AbcMobile, "Мобильные устройства", "Swift, Kotlin, JavaScript, React", "Мобильное приложение и/или PWA с пользовательским интерфейсом")
+
+    Container(AbcWebUiBFF, "BFF Web-интерфейса")
+    Container(AbcMobileBFF, "BFF мобильных устройств")
+
+    Container(AbcApiGateway, "API Gateway", "", "Единая точка входа, маршрутизация запросов")
+
+    Container(AbcCore, "Ядро АБС", "C++, Oracle", "Обработка транзакций, ведение счетов")
+    ContainerDb(AbcDB, "База данных АБС", "PostgreSQL", "Хранение финансовых данных и данных клиентов")
+    ContainerDb(AbcCache, "Кеш-система", "Redis", "Хранение сессий пользователей")
+    Container(ProductsService, "Сервис продуктов", ".NET Core, MS SQL", "Управление тарифами, ставками, продуктами")
+    Container(RequestsService, "Сервис заявок", "Java, PostgreSQL", "Буферный слой для обработки заявок")
+
+    Container(AbcUserService, "Сервис аутентификации")
+}
+
+' Связи интернет-банка
+Rel(client, WebUi, "Работает через браузер")
+Rel(WebUi, WebUiBFF, "API запросы")
+Rel(WebUiBFF, ApiGateway, "API запросы")
+
+Rel(client, Mobile, "Работает через мобильное устройство")
+Rel(Mobile, MobileBFF, "API запросы")
+Rel(MobileBFF, ApiGateway, "API запросы")
+
+Rel(ApiGateway, UserService, "Запросы получения информации о пользователе", "REST")
+Rel(ApiGateway, DepositService, "Операции с депозитами", "REST")
+Rel(ApiGateway, CreditService, "Кредитные операции", "REST")
+Rel(DepositService, cache, "Кэширование данных", "Redis protocol")
+Rel(CreditService, cache, "Кэширование предложений", "Redis protocol")
+Rel(UserService, IBDb, "Информация о клиентах", "REST")
+Rel(DepositService, IBDb, "Заявки")
+Rel(CreditService, IBDb, "Заявки")
+
+' Связи между системами
+Rel(DepositService, broker, "Создание заявки на депозит", "REST/HTTPS")
+Rel(CreditService, broker, "Создание кредитной заявки", "REST/HTTPS")
+' Rel(RequestsService, broker, "Отправка заявки в АБС", "AMQP")
+' Rel(AbcCore, AbcDB, "Работа с данными", "SQL")
+Rel(broker, RequestsService, "Отправка информации о заявках")
+
+' @todo Сделать, возможно пустить через КАФКУ в обратную сторону и там сделать сервис
+' который будет принимать изменения ставок (да, так сделать)
+' Связи с сервисом продуктов
+' Rel(DepositService, ProductsService, "Получение актуальных ставок", "REST")
+' Rel(CreditService, ProductsService, "Получение условий кредитования", "REST")
+
+' Связи аутентификации
+Rel(UserService, SMSGateway, "Отправка SMS-кодов", "API")
+Rel(UserService, cache, "Сессии пользователей", "REST")
+
+' Связи сообщений
+Rel(SMSGateway, SMSService, "Передача SMS", "REST")
+Rel(SMSService, client, "Доставка уведомлений")
+
+' Связи АБС
+Rel(manager, AbcWebUi, "Работает через браузер")
+Rel(manager, AbcMobile, "Работает через мобильное устройство")
+
+Rel(AbcWebUi, AbcWebUiBFF, "API запросы")
+Rel(AbcMobile, AbcMobileBFF, "API запросы")
+
+Rel(AbcWebUiBFF, AbcApiGateway, "API запросы")
+Rel(AbcMobileBFF, AbcApiGateway, "API запросы")
+
+Rel(AbcApiGateway, ProductsService, "Запросы получения/управления кредитами/депозитами", "REST")
+Rel(AbcApiGateway, RequestsService, "Запросы получения/управления заявками")
+Rel(AbcApiGateway, AbcUserService, "Запросы получения информации о пользователе")
+
+Rel(ProductsService, AbcDB, "Данные о кредитах/депозитах")
+Rel(RequestsService, AbcDB, "Данные о заявках")
+Rel(AbcUserService, AbcDB, "Данные о пользователях")
+Rel(AbcUserService, AbcCache, "Данные о сессиях пользователей")
+
+' Связи системы кол-цента
+Rel(CallManager, CallSystem, "Данные о заявках")
+Rel(CallSystem, broker, "Сформированные кредитные/депозитные заявки")
+
+@enduml
