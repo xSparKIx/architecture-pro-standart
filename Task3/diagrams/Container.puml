@@ -9,11 +9,13 @@ Person(manager, "Сотрудник банка", "Сотрудник креди�
 Person(CallManager, "Менеджер кол-центра", "Менеджер кол-центра по офомлению заявок клиентов")
 
 System_Ext(SMSService, "Сервис рассылки уведомлений", "Отправляет СМС пользователям")
+System_Ext(KreditHistorySystem, "Бюро кредитных историй")
 System(SMSGateway, "SMS-шлюз", "Рассылает сообщения")
 System(CallSystem, "Система кол-центра", "Принимает и формирует заявки")
+System(ScoringSystem, "Система скоринга", "Получает информацию о заявке и передает оценку")
+System(site, "Сайт", "Получает первичную заявку на кредит")
 
-' @todo Скорее всего заменить на Кафку
-SystemQueue(broker, "Брокер сообщений", "RabbitMQ", "Асинхронный обмен сообщениями между системами")
+SystemQueue(broker, "Брокер сообщений", "Kafka", "Асинхронный обмен сообщениями между системами")
 
 ' Система интернет-банка
 System_Boundary(InternetBankBoundary, "Интернет-банк") {
@@ -21,7 +23,7 @@ System_Boundary(InternetBankBoundary, "Интернет-банк") {
     Container(MobileBFF, "BFF мобильных устройств")
     Container(WebUi, "Web-интерфейс", "JavaScript, React", "SPA приложение с пользовательским интерфейсом")
     Container(WebUiBFF, "BFF Web-интерфейса")
-    Container(ApiGateway, "API Gateway", "", "Единая точка входа, маршрутизация запросов")
+    Container(ApiGateway, "API Gateway",, "Единая точка входа, маршрутизация запросов")
     Container(UserService, "Сервис аутентификации")
     Container(DepositService, "Сервис депозитов", ".NET Core", "Обработка заявок на открытие депозитов")
     Container(CreditService, "Сервис кредитов", "Java Spring", "Обработка кредитных заявок, интеграция со скорингом")
@@ -37,12 +39,14 @@ System_Boundary(AbcBoundary, "АБС банка") {
     Container(AbcWebUiBFF, "BFF Web-интерфейса")
     Container(AbcMobileBFF, "BFF мобильных устройств")
 
-    Container(AbcApiGateway, "API Gateway", "", "Единая точка входа, маршрутизация запросов")
+    Container(AbcApiGateway, "API Gateway",, "Единая точка входа, маршрутизация запросов")
 
-    Container(AbcCore, "Ядро АБС", "C++, Oracle", "Обработка транзакций, ведение счетов")
     ContainerDb(AbcDB, "База данных АБС", "PostgreSQL", "Хранение финансовых данных и данных клиентов")
     ContainerDb(AbcCache, "Кеш-система", "Redis", "Хранение сессий пользователей")
-    Container(ProductsService, "Сервис продуктов", ".NET Core, MS SQL", "Управление тарифами, ставками, продуктами")
+
+    Container(ABCDepositService, "Сервис депозитов",, "Управление тарифами, ставками, продуктами")
+    Container(ABCCreditService, "Сервис кредитов",, "Управление тарифами, ставками, продуктами")
+
     Container(RequestsService, "Сервис заявок", "Java, PostgreSQL", "Буферный слой для обработки заявок")
 
     Container(AbcUserService, "Сервис аутентификации")
@@ -50,6 +54,7 @@ System_Boundary(AbcBoundary, "АБС банка") {
 
 ' Связи интернет-банка
 Rel(client, WebUi, "Работает через браузер")
+Rel(client, site, "Работает через браузер")
 Rel(WebUi, WebUiBFF, "API запросы")
 Rel(WebUiBFF, ApiGateway, "API запросы")
 
@@ -67,17 +72,14 @@ Rel(DepositService, IBDb, "Заявки")
 Rel(CreditService, IBDb, "Заявки")
 
 ' Связи между системами
-Rel(DepositService, broker, "Создание заявки на депозит", "REST/HTTPS")
-Rel(CreditService, broker, "Создание кредитной заявки", "REST/HTTPS")
-' Rel(RequestsService, broker, "Отправка заявки в АБС", "AMQP")
-' Rel(AbcCore, AbcDB, "Работа с данными", "SQL")
-Rel(broker, RequestsService, "Отправка информации о заявках")
+Rel(DepositService, broker, "Создание заявки на депозит и получение актуальных ставок")
+Rel(CreditService, broker, "Создание кредитной заявки и получение актуальных условий кредитования")
+Rel(RequestsService, broker, "Получает информацию об отценках, заявках и передает решение по ним")
+Rel(site, broker, "Получает информацию о первичных заявках")
 
-' @todo Сделать, возможно пустить через КАФКУ в обратную сторону и там сделать сервис
-' который будет принимать изменения ставок (да, так сделать)
 ' Связи с сервисом продуктов
-' Rel(DepositService, ProductsService, "Получение актуальных ставок", "REST")
-' Rel(CreditService, ProductsService, "Получение условий кредитования", "REST")
+Rel(ABCDepositService, broker, "Передает актуальные ставки и условия по депозитам")
+Rel(ABCCreditService, broker, "Передает актуальные условия кредитования")
 
 ' Связи аутентификации
 Rel(UserService, SMSGateway, "Отправка SMS-кодов", "API")
@@ -97,17 +99,22 @@ Rel(AbcMobile, AbcMobileBFF, "API запросы")
 Rel(AbcWebUiBFF, AbcApiGateway, "API запросы")
 Rel(AbcMobileBFF, AbcApiGateway, "API запросы")
 
-Rel(AbcApiGateway, ProductsService, "Запросы получения/управления кредитами/депозитами", "REST")
+Rel(AbcApiGateway, ABCDepositService, "Запросы получения/управления депозитами", "REST")
+Rel(AbcApiGateway, ABCCreditService, "Запросы получения/управления кредитами", "REST")
 Rel(AbcApiGateway, RequestsService, "Запросы получения/управления заявками")
 Rel(AbcApiGateway, AbcUserService, "Запросы получения информации о пользователе")
+Rel(AbcApiGateway, KreditHistorySystem, "Получает информацию о кредитной истории", "REST API")
 
-Rel(ProductsService, AbcDB, "Данные о кредитах/депозитах")
+Rel(ScoringSystem, broker, "Получение информации о новых заявках и передача оценки")
+
+Rel(ABCDepositService, AbcDB, "Данные о депозитах")
+Rel(ABCCreditService, AbcDB, "Данные о кредитах")
 Rel(RequestsService, AbcDB, "Данные о заявках")
 Rel(AbcUserService, AbcDB, "Данные о пользователях")
 Rel(AbcUserService, AbcCache, "Данные о сессиях пользователей")
 
 ' Связи системы кол-цента
 Rel(CallManager, CallSystem, "Данные о заявках")
-Rel(CallSystem, broker, "Сформированные кредитные/депозитные заявки")
+Rel(CallSystem, broker, "Получает первичные заявки и передает сформированные кредитные/депозитные заявки")
 
 @enduml
