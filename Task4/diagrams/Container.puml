@@ -2,20 +2,23 @@
 
 !include ../templates/C4_Container.puml
 
-title Диаграмма контейнеров - Детализация интернет-банка и АБС
+title Диаграмма контейнеров - Детализация интернет-банка и АБС (v2)
 
 Person(client, "Клиент", "Пользователь цифровых услуг банка")
 Person(manager, "Сотрудник банка", "Сотрудник кредитного/депозитного отделов банка")
 Person(CallManager, "Менеджер кол-центра", "Менеджер кол-центра по оформлению заявок клиентов")
+Person(PartnerCallManager, "Менеджер партнерского КЦ", "Менеджер партнерского кол-центра")
 
 System_Ext(SMSService, "Сервис рассылки уведомлений", "Отправляет СМС пользователям")
 System_Ext(KreditHistorySystem, "Бюро кредитных историй")
+System_Ext(PartnerCallCenter, "Партнерский кол-центр", "Внешняя система обработки заявок")
 System(SMSGateway, "SMS-шлюз", "Рассылает сообщения")
 System(CallSystem, "Система кол-центра", "Принимает и формирует заявки")
 System(ScoringSystem, "Система скоринга", "Получает информацию о заявке и передает оценку")
 System(site, "Сайт", "Получает первичную заявку на кредит")
 
 SystemQueue(broker, "Брокер сообщений", "Kafka", "Асинхронный обмен сообщениями между системами")
+SystemDb(SFTPServer, "SFTP-сервер", "Linux/OpenSSH", "Безопасный обмен файлами с партнерами")
 
 ' Система интернет-банка
 System_Boundary(InternetBankBoundary, "Интернет-банк") {
@@ -116,5 +119,11 @@ Rel(AbcUserService, AbcCache, "Данные о сессиях пользоват
 ' Связи системы кол-центра
 Rel(CallManager, CallSystem, "Данные о заявках")
 Rel(CallSystem, broker, "Получает первичные заявки и передает сформированные кредитные/депозитные заявки")
+
+' Связи SFTP
+Rel(ABCDepositService, SFTPServer, "Публикует файлы с актуальными ставками", "SFTP")
+Rel(PartnerCallCenter, SFTPServer, "Забирает файлы с актуальными ставками", "SFTP")
+
+Rel(PartnerCallManager, PartnerCallCenter, "Обрабатывает заявку и консультирует клиента")
 
 @enduml
