@@ -1,14 +1,14 @@
 @startuml container_diagram
 
 !include ../templates/C4_Container.puml
-
+' @todo Убрать от сюда кредиты и оставить только депозиты
 title Диаграмма контейнеров - Детализация интернет-банка и АБС
 
 Person(client, "Клиент", "Пользователь цифровых услуг банка")
 Person(manager, "Сотрудник банка", "Сотрудник кредитного/депозитного отделов банка")
 Person(CallManager, "Менеджер кол-центра", "Менеджер кол-центра по оформлению заявок клиентов")
 
-System_Ext(SMSService, "Сервис рассылки уведомлений", "Отправляет СМС пользователям")
+System_Ext(SMSService, "Телеком-оператор", "Отправляет СМС пользователям")
 System_Ext(KreditHistorySystem, "Бюро кредитных историй")
 System(SMSGateway, "SMS-шлюз", "Рассылает сообщения")
 System(CallSystem, "Система кол-центра", "Принимает и формирует заявки")
@@ -103,9 +103,9 @@ Rel(AbcApiGateway, ABCDepositService, "Запросы получения/упр�
 Rel(AbcApiGateway, ABCCreditService, "Запросы получения/управления кредитами", "REST")
 Rel(AbcApiGateway, RequestsService, "Запросы получения/управления заявками")
 Rel(AbcApiGateway, AbcUserService, "Запросы получения информации о пользователе")
-Rel(AbcApiGateway, KreditHistorySystem, "Получает информацию о кредитной истории", "REST API")
 
 Rel(ScoringSystem, broker, "Получение информации о новых заявках и передача оценки")
+Rel(ScoringSystem, KreditHistorySystem, "Получает информацию о кредитной истории", "REST API")
 
 Rel(ABCDepositService, AbcDB, "Данные о депозитах")
 Rel(ABCCreditService, AbcDB, "Данные о кредитах")

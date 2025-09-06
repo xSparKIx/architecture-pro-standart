@@ -9,7 +9,7 @@ Person(manager, "Сотрудник банка", "Сотрудник креди�
 Person(CallManager, "Менеджер кол-центра", "Менеджер кол-центра по оформлению заявок клиентов")
 Person(PartnerCallManager, "Менеджер партнерского КЦ", "Менеджер партнерского кол-центра")
 
-System_Ext(SMSService, "Сервис рассылки уведомлений", "Отправляет СМС пользователям")
+System_Ext(SMSService, "Телеком-оператор", "Отправляет СМС пользователям")
 System_Ext(KreditHistorySystem, "Бюро кредитных историй")
 System_Ext(PartnerCallCenter, "Партнерский кол-центр", "Внешняя система обработки заявок")
 System(SMSGateway, "SMS-шлюз", "Рассылает сообщения")
@@ -106,8 +106,8 @@ Rel(AbcApiGateway, ABCDepositService, "Запросы получения/упр�
 Rel(AbcApiGateway, ABCCreditService, "Запросы получения/управления кредитами", "REST")
 Rel(AbcApiGateway, RequestsService, "Запросы получения/управления заявками")
 Rel(AbcApiGateway, AbcUserService, "Запросы получения информации о пользователе")
-Rel(AbcApiGateway, KreditHistorySystem, "Получает информацию о кредитной истории", "REST API")
 
+Rel(ScoringSystem, KreditHistorySystem, "Получает информацию о кредитной истории", "REST API")
 Rel(ScoringSystem, broker, "Получение информации о новых заявках и передача оценки")
 
 Rel(ABCDepositService, AbcDB, "Данные о депозитах")
