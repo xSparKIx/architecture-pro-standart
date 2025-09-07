@@ -5,17 +5,15 @@
 title Диаграмма контейнеров - Детализация интернет-банка и АБС (v2)
 
 Person(client, "Клиент", "Пользователь цифровых услуг банка")
-Person(manager, "Сотрудник банка", "Сотрудник кредитного/депозитного отделов банка")
+Person(manager, "Сотрудник банка", "Сотрудник депозитного отделов банка")
 Person(CallManager, "Менеджер кол-центра", "Менеджер кол-центра по оформлению заявок клиентов")
 Person(PartnerCallManager, "Менеджер партнерского КЦ", "Менеджер партнерского кол-центра")
 
 System_Ext(SMSService, "Телеком-оператор", "Отправляет СМС пользователям")
-System_Ext(KreditHistorySystem, "Бюро кредитных историй")
 System_Ext(PartnerCallCenter, "Партнерский кол-центр", "Внешняя система обработки заявок")
 System(SMSGateway, "SMS-шлюз", "Рассылает сообщения")
 System(CallSystem, "Система кол-центра", "Принимает и формирует заявки")
-System(ScoringSystem, "Система скоринга", "Получает информацию о заявке и передает оценку")
-System(site, "Сайт", "Получает первичную заявку на кредит")
+System(site, "Сайт", "Получает первичную заявку")
 
 SystemQueue(broker, "Брокер сообщений", "Kafka", "Асинхронный обмен сообщениями между системами")
 SystemDb(SFTPServer, "SFTP-сервер", "Linux/OpenSSH", "Безопасный обмен файлами с партнерами")
@@ -29,7 +27,6 @@ System_Boundary(InternetBankBoundary, "Интернет-банк") {
     Container(ApiGateway, "API Gateway",, "Единая точка входа, маршрутизация запросов")
     Container(UserService, "Сервис аутентификации")
     Container(DepositService, "Сервис депозитов", ".NET Core", "Обработка заявок на открытие депозитов")
-    Container(CreditService, "Сервис кредитов", "Java Spring", "Обработка кредитных заявок, интеграция со скорингом")
     ContainerDb(cache, "Кэш-сервер", "Redis", "Кэширование справочников, сессий, предодобренных предложений")
     ContainerDb(IBDb, "База данных", "PostgreSQL", "Содержит информацию о клиентах и их заявках")
 }
@@ -48,7 +45,6 @@ System_Boundary(AbcBoundary, "АБС банка") {
     ContainerDb(AbcCache, "Кеш-система", "Redis", "Хранение сессий пользователей")
 
     Container(ABCDepositService, "Сервис депозитов",, "Управление тарифами, ставками, продуктами")
-    Container(ABCCreditService, "Сервис кредитов",, "Управление тарифами, ставками, продуктами")
 
     Container(RequestsService, "Сервис заявок", "Java, PostgreSQL", "Буферный слой для обработки заявок")
 
@@ -67,22 +63,17 @@ Rel(MobileBFF, ApiGateway, "API запросы")
 
 Rel(ApiGateway, UserService, "Запросы получения информации о пользователе", "REST")
 Rel(ApiGateway, DepositService, "Операции с депозитами", "REST")
-Rel(ApiGateway, CreditService, "Кредитные операции", "REST")
 Rel(DepositService, cache, "Кэширование данных", "Redis protocol")
-Rel(CreditService, cache, "Кэширование предложений", "Redis protocol")
 Rel(UserService, IBDb, "Информация о клиентах", "REST")
 Rel(DepositService, IBDb, "Заявки")
-Rel(CreditService, IBDb, "Заявки")
 
 ' Связи между системами
 Rel(DepositService, broker, "Создание заявки на депозит и получение актуальных ставок")
-Rel(CreditService, broker, "Создание кредитной заявки и получение актуальных условий кредитования")
 Rel(RequestsService, broker, "Получает информацию об оценках, заявках и передает решение по ним")
 Rel(site, broker, "Получает информацию о первичных заявках")
 
 ' Связи с сервисом продуктов
 Rel(ABCDepositService, broker, "Передает актуальные ставки и условия по депозитам")
-Rel(ABCCreditService, broker, "Передает актуальные условия кредитования")
 
 ' Связи аутентификации
 Rel(UserService, SMSGateway, "Отправка SMS-кодов", "API")
@@ -103,22 +94,17 @@ Rel(AbcWebUiBFF, AbcApiGateway, "API запросы")
 Rel(AbcMobileBFF, AbcApiGateway, "API запросы")
 
 Rel(AbcApiGateway, ABCDepositService, "Запросы получения/управления депозитами", "REST")
-Rel(AbcApiGateway, ABCCreditService, "Запросы получения/управления кредитами", "REST")
 Rel(AbcApiGateway, RequestsService, "Запросы получения/управления заявками")
 Rel(AbcApiGateway, AbcUserService, "Запросы получения информации о пользователе")
 
-Rel(ScoringSystem, KreditHistorySystem, "Получает информацию о кредитной истории", "REST API")
-Rel(ScoringSystem, broker, "Получение информации о новых заявках и передача оценки")
-
 Rel(ABCDepositService, AbcDB, "Данные о депозитах")
-Rel(ABCCreditService, AbcDB, "Данные о кредитах")
 Rel(RequestsService, AbcDB, "Данные о заявках")
 Rel(AbcUserService, AbcDB, "Данные о пользователях")
 Rel(AbcUserService, AbcCache, "Данные о сессиях пользователей")
 
 ' Связи системы кол-центра
 Rel(CallManager, CallSystem, "Данные о заявках")
-Rel(CallSystem, broker, "Получает первичные заявки и передает сформированные кредитные/депозитные заявки")
+Rel(CallSystem, broker, "Получает первичные заявки и передает сформированные депозитные заявки")
 
 ' Связи SFTP
 Rel(ABCDepositService, SFTPServer, "Публикует файлы с актуальными ставками", "SFTP")
