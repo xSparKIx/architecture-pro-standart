@@ -1,0 +1,64 @@
+@startuml
+
+!include ../templates/C4_Container.puml
+
+Person(client, "Клиент", "Подаёт заявки на кредит через сайт или интернет-банк")
+Person(manager, "Сотрудник отделения", "Оформляет заявки в отделении")
+Person(operator, "Сотрудник кол-центра", "Консультация клиента по вопросам кредитования")
+
+System_Ext(bki, "Бюро кредитных историй", "Внешняя система, API для проверки кредитной истории")
+System_Ext(SMSService, "Телеком-оператор", "Отправляет СМС пользователям")
+
+' Граница системы кредитования
+System_Boundary(CreditSystemBoundary, "Система кредитования") {
+    Container(web_ui, "Web-интерфейс", "JavaScript, React", "Интерфейс для сотрудников банка")
+    Container(api_gateway, "API Gateway", "Kong", "Единая точка входа для всех API-запросов")
+    Container(credit_service, "Сервис кредитования",, "Основная бизнес-логика кредитования")
+    ContainerDb(credit_db, "База данных кредитов", "PostgreSQL", "Хранение данных о заявках и кредитах")
+    ContainerDb(cache_db, "Бза данных кэша", "Redis", "Используется для кеширования ответов и предодобренных предложений")
+}
+
+' Внешние системы
+System(camunda_engine, "Кредитный конвейер", "Camunda", "Оркестрация бизнес-процессов кредитования")
+System(scoring_service, "Система скоринга", "Python", "Расчет скорингового балла, интеграция с БКИ")
+System(site, "Сайт", "Витрина кредитов, подача онлайн-заявки")
+System(ib, "Интернет-банк", "Подача заявки и предодобренные предложения")
+System(abc, "АБС", "Оформление кредитов, учёт и проводки")
+System(call_system, "Система кол-центра", "Принимает и формирует заявки")
+System(sms_gateway, "СМС-шлюз", "Отправка уведомлений клиентам")
+
+' Связи от людей
+Rel(client, site, "Просмотр условий, подача заявки", "HTTPS")
+Rel(client, ib, "Просмотр условий/офферов, подача заявки", "HTTPS")
+Rel(manager, web_ui, "Оформление и завершение заявок", "HTTPS")
+Rel(operator, call_system, "Обработка заявок клиентов")
+
+' Связи от внешних систем к API Gateway
+Rel(site, api_gateway, "Передача онлайн-заявки", "REST/HTTPS")
+Rel(ib, api_gateway, "Передача онлайн-заявки", "REST/HTTPS")
+Rel(call_system, api_gateway, "Передача заявки от кол-центра", "REST/HTTPS")
+
+' Внутренние связи в системе кредитования
+Rel(api_gateway, credit_service, "Маршрутизация запросов", "HTTP")
+Rel(credit_service, credit_db, "Хранение данных о заявках")
+Rel(credit_service, cache_db, "Кеширование отвтов и предодобренных решений")
+Rel(credit_service, camunda_engine, "Запуск процессов кредитования", "REST")
+
+Rel(camunda_engine, scoring_service, "Запрос скоринга для заявки", "REST")
+Rel(camunda_engine, sms_gateway, "Уведомления об изменении статуса", "REST")
+
+Rel(scoring_service, bki, "Запрос кредитной истории", "REST/HTTPS")
+
+Rel(sms_gateway, SMSService, "Передача СМС для отправки", "REST/HTTPS")
+
+' Связи с АБС
+Rel(credit_service, abc, "Передача одобренных заявок для оформления", "REST/HTTPS")
+Rel(abc, sms_gateway, "Уведомления о решении по кредиту", "REST")
+
+' Уведомления клиентам
+Rel(SMSService, client, "Доставка уведомлений", "SMS")
+
+' Обратные связи для чтения состояний
+Rel(web_ui, api_gateway, "Получение данных для отображения и отслеживание статуса процессов")
+
+@enduml

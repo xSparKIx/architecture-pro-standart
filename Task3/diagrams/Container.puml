@@ -1,0 +1,106 @@
+@startuml container_diagram
+
+!include ../templates/C4_Container.puml
+
+title Диаграмма контейнеров - Детализация интернет-банка и АБС
+
+Person(client, "Клиент", "Пользователь цифровых услуг банка")
+Person(manager, "Сотрудник банка", "Сотрудник депозитного отделов банка")
+Person(CallManager, "Менеджер кол-центра", "Менеджер кол-центра по оформлению заявок клиентов")
+
+System_Ext(SMSService, "Телеком-оператор", "Отправляет СМС пользователям")
+System(SMSGateway, "SMS-шлюз", "Рассылает сообщения")
+System(CallSystem, "Система кол-центра", "Принимает и формирует заявки")
+System(site, "Сайт", "Получает первичную заявку на депозит")
+
+SystemQueue(broker, "Брокер сообщений", "Kafka", "Асинхронный обмен сообщениями между системами")
+
+' Система интернет-банка
+System_Boundary(InternetBankBoundary, "Интернет-банк") {
+    Container(Mobile, "Мобильные устройства", "Swift, Kotlin, JavaScript, React", "Мобильное приложение и/или PWA с пользовательским интерфейсом")
+    Container(MobileBFF, "BFF мобильных устройств")
+    Container(WebUi, "Web-интерфейс", "JavaScript, React", "SPA приложение с пользовательским интерфейсом")
+    Container(WebUiBFF, "BFF Web-интерфейса")
+    Container(ApiGateway, "API Gateway",, "Единая точка входа, маршрутизация запросов")
+    Container(UserService, "Сервис аутентификации")
+    Container(DepositService, "Сервис депозитов", ".NET Core", "Обработка заявок на открытие депозитов")
+    ContainerDb(cache, "Кэш-сервер", "Redis", "Кэширование справочников, сессий, предодобренных предложений")
+    ContainerDb(IBDb, "База данных", "PostgreSQL", "Содержит информацию о клиентах и их заявках")
+}
+
+' Система АБС
+System_Boundary(AbcBoundary, "АБС банка") {
+    Container(AbcWebUi, "Web-интерфейс АБС", "JavaScript, React", "SPA с пользовательским интерфейсом")
+    Container(AbcMobile, "Мобильные устройства", "Swift, Kotlin, JavaScript, React", "Мобильное приложение и/или PWA с пользовательским интерфейсом")
+
+    Container(AbcWebUiBFF, "BFF Web-интерфейса")
+    Container(AbcMobileBFF, "BFF мобильных устройств")
+
+    Container(AbcApiGateway, "API Gateway",, "Единая точка входа, маршрутизация запросов")
+
+    ContainerDb(AbcDB, "База данных АБС", "PostgreSQL", "Хранение финансовых данных и данных клиентов")
+    ContainerDb(AbcCache, "Кеш-система", "Redis", "Хранение сессий пользователей")
+
+    Container(ABCDepositService, "Сервис депозитов",, "Управление тарифами, ставками, продуктами")
+
+    Container(RequestsService, "Сервис заявок", "Java, PostgreSQL", "Буферный слой для обработки заявок")
+
+    Container(AbcUserService, "Сервис аутентификации")
+}
+
+' Связи интернет-банка
+Rel(client, WebUi, "Работает через браузер")
+Rel(client, site, "Работает через браузер")
+Rel(WebUi, WebUiBFF, "API запросы")
+Rel(WebUiBFF, ApiGateway, "API запросы")
+
+Rel(client, Mobile, "Работает через мобильное устройство")
+Rel(Mobile, MobileBFF, "API запросы")
+Rel(MobileBFF, ApiGateway, "API запросы")
+
+Rel(ApiGateway, UserService, "Запросы получения информации о пользователе", "REST")
+Rel(ApiGateway, DepositService, "Операции с депозитами", "REST")
+Rel(DepositService, cache, "Кэширование данных", "Redis protocol")
+Rel(UserService, IBDb, "Информация о клиентах", "REST")
+Rel(DepositService, IBDb, "Заявки")
+
+' Связи между системами
+Rel(DepositService, broker, "Создание заявки на депозит и получение актуальных ставок")
+Rel(RequestsService, broker, "Получает информацию об оценках, заявках и передает решение по ним")
+Rel(site, broker, "Получает информацию о первичных заявках")
+
+' Связи с сервисом продуктов
+Rel(ABCDepositService, broker, "Передает актуальные ставки и условия по депозитам")
+
+' Связи аутентификации
+Rel(UserService, SMSGateway, "Отправка SMS-кодов", "API")
+Rel(UserService, cache, "Сессии пользователей", "REST")
+
+' Связи сообщений
+Rel(SMSGateway, SMSService, "Передача SMS", "REST")
+Rel(SMSService, client, "Доставка уведомлений")
+
+' Связи АБС
+Rel(manager, AbcWebUi, "Работает через браузер")
+Rel(manager, AbcMobile, "Работает через мобильное устройство")
+
+Rel(AbcWebUi, AbcWebUiBFF, "API запросы")
+Rel(AbcMobile, AbcMobileBFF, "API запросы")
+
+Rel(AbcWebUiBFF, AbcApiGateway, "API запросы")
+Rel(AbcMobileBFF, AbcApiGateway, "API запросы")
+
+Rel(AbcApiGateway, ABCDepositService, "Запросы получения/управления депозитами", "REST")
+Rel(AbcApiGateway, RequestsService, "Запросы получения/управления заявками")
+Rel(AbcApiGateway, AbcUserService, "Запросы получения информации о пользователе")
+
+Rel(ABCDepositService, AbcDB, "Данные о депозитах")
+Rel(RequestsService, AbcDB, "Данные о заявках")
+Rel(AbcUserService, AbcDB, "Данные о пользователях")
+Rel(AbcUserService, AbcCache, "Данные о сессиях пользователей")
+
+' Связи системы кол-центра
+Rel(CallManager, CallSystem, "Данные о заявках")
+Rel(CallSystem, broker, "Получает первичные заявки и передает сформированные депозитные заявки")
+
+@enduml
